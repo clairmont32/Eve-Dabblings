@@ -4,29 +4,44 @@ import (
 	"Eve-Dabblings/globals"
 	"bytes"
 	"encoding/json"
-	log "github.com/sirupsen/logrus"
+	"fmt"
+	//log "github.com/sirupsen/logrus"
 	"io/ioutil"
 	"net/http"
 	"time"
 )
 
-// response struct for system information
-type SystemInfo struct {
-	Systems []struct {
-		SystemID   int32  `json:"id"`
-		SystemName string `json:"name"`
-	} `json:"systems"`
+// response struct for system and inventory items
+type ResponseInfo struct {
+	SystemInfo
+	InvInfo
 }
 
+// stuct for systems, if systems exists
+type SystemInfo struct {
+	System []struct {
+		SystemID int32  `json:"id"`
+		Name     string `json:"name"`
+	} `json:"systems,omitempty"`
+}
+
+// stuct for inventory items, if inventory_types exists
 type InvInfo struct {
-	Type []struct {
-		ID   int32  `json:"id"`
-		Name string `json:"name"`
-	} `json:"inventory_types"`
+	Inventory []struct {
+		TypeID int32  `json:"id"`
+		Name   string `json:"name"`
+	} `json:"inventory_types,omitempty"`
+}
+
+type RegionInfo struct {
+	Region []struct {
+		RegionID int32  `json:"id"`
+		Name     string `json:"name"`
+	} `json:"regions"`
 }
 
 // returns body which is a []byte
-func searchUniverse(data []byte) ([]byte, error) {
+func callUniverseEndpoint(data []byte) ([]byte, error) {
 	client := &http.Client{Timeout: 5 * time.Second}
 
 	req, reqErr := http.NewRequest("POST", globals.EsiDomain+"/latest/universe/ids", bytes.NewReader(data))
@@ -41,13 +56,13 @@ func searchUniverse(data []byte) ([]byte, error) {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		log.Printf("Received %v", resp.Status)
-		log.Infoln(resp.Header)
+		fmt.Println(fmt.Sprintf("Received %v", resp.Status))
+		fmt.Println(resp.Header)
 	}
 	body, readErr := ioutil.ReadAll(resp.Body)
 	if readErr != nil {
-		log.Infoln("Error reading body")
-		log.Infoln(readErr)
+		fmt.Println("Error reading body")
+		fmt.Println(readErr)
 	}
 	resp.Body.Close()
 
@@ -56,38 +71,37 @@ func searchUniverse(data []byte) ([]byte, error) {
 }
 
 // submits a single system name and provides the ID
-func SearchSystem(systemName string) (*SystemInfo, error) {
+func GetUniverseID(searchName string) (*ResponseInfo, error) {
 	data, marshErr := func() ([]byte, error) {
-		systemBytes, marshErr := json.Marshal([]string{systemName})
+		systemBytes, marshErr := json.Marshal([]string{searchName})
 		if marshErr != nil {
 			return nil, marshErr
 		}
-		log.Infoln(string(systemBytes))
+		fmt.Println(string(systemBytes))
 		return systemBytes, nil
 	}()
-
 	if marshErr != nil {
-		return &SystemInfo{}, marshErr
+		return nil, marshErr
 	}
 
-	results, searchErr := searchUniverse(data)
+	results, searchErr := callUniverseEndpoint(data)
 	if searchErr != nil {
-		return &SystemInfo{}, searchErr
+		return nil, searchErr
 	}
 
 	// unmarshal into SystemInfo
-	regionInfo, unmarshErr := func() (*SystemInfo, error) {
-		var regionData *SystemInfo
-		err := json.Unmarshal(results, &regionData)
+	regionInfo, unmarshErr := func() (*ResponseInfo, error) {
+		var responseData *ResponseInfo
+		err := json.Unmarshal(results, &responseData)
 		if err != nil {
-			log.Infoln(string(results))
+			fmt.Println(string(results))
 			return nil, err
 		}
-		return regionData, nil
+		return responseData, nil
 	}()
 
 	if unmarshErr != nil {
-		log.Error("Error unmarshalling response from server")
+		fmt.Println("Error unmarshalling response from server")
 		return nil, unmarshErr
 	}
 
