@@ -5,28 +5,31 @@ import (
 	"bytes"
 	"encoding/json"
 	log "github.com/sirupsen/logrus"
-
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"time"
 )
 
-// response struct
-
-//TODO: make this match the API response
-type Region struct {
+// response struct for system information
+type SystemInfo struct {
 	Systems []struct {
-		SystemID   int64
-		SystemName string
-	}
+		SystemID   int32  `json:"id"`
+		SystemName string `json:"name"`
+	} `json:"systems"`
+}
+
+type InvInfo struct {
+	Type []struct {
+		ID   int32  `json:"id"`
+		Name string `json:"name"`
+	} `json:"inventory_types"`
 }
 
 // returns body which is a []byte
 func searchUniverse(data []byte) ([]byte, error) {
 	client := &http.Client{Timeout: 5 * time.Second}
 
-	req, reqErr := http.NewRequest("POST", globals.EsiDomain+"/latest/universe/ids", bytes.NewReader([]byte("[\"kamio\"]"))) // TODO: figure out how to pass the values so the API likes it
+	req, reqErr := http.NewRequest("POST", globals.EsiDomain+"/latest/universe/ids", bytes.NewReader(data))
 	if reqErr != nil {
 		return nil, reqErr
 	}
@@ -38,13 +41,13 @@ func searchUniverse(data []byte) ([]byte, error) {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		fmt.Printf("Received %v", resp.Status)
-		fmt.Println(resp.Header)
+		log.Printf("Received %v", resp.Status)
+		log.Infoln(resp.Header)
 	}
 	body, readErr := ioutil.ReadAll(resp.Body)
 	if readErr != nil {
-		fmt.Println("Error reading body")
-		fmt.Println(readErr)
+		log.Infoln("Error reading body")
+		log.Infoln(readErr)
 	}
 	resp.Body.Close()
 
@@ -52,30 +55,32 @@ func searchUniverse(data []byte) ([]byte, error) {
 
 }
 
-func SearchSystem(regionName string) (*Region, error) {
+// submits a single system name and provides the ID
+func SearchSystem(systemName string) (*SystemInfo, error) {
 	data, marshErr := func() ([]byte, error) {
-		systemBytes, marshErr := json.Marshal(regionName)
+		systemBytes, marshErr := json.Marshal([]string{systemName})
 		if marshErr != nil {
 			return nil, marshErr
 		}
-		fmt.Println(string(systemBytes))
+		log.Infoln(string(systemBytes))
 		return systemBytes, nil
 	}()
 
 	if marshErr != nil {
-		return &Region{}, marshErr
+		return &SystemInfo{}, marshErr
 	}
 
 	results, searchErr := searchUniverse(data)
 	if searchErr != nil {
-		return &Region{}, searchErr
+		return &SystemInfo{}, searchErr
 	}
 
-	//TODO: this raises a panic- Region.Systems of type struct { SystemID int32; SystemName string }
-	regionInfo, unmarshErr := func() (*Region, error) {
-		var regionData *Region
+	// unmarshal into SystemInfo
+	regionInfo, unmarshErr := func() (*SystemInfo, error) {
+		var regionData *SystemInfo
 		err := json.Unmarshal(results, &regionData)
 		if err != nil {
+			log.Infoln(string(results))
 			return nil, err
 		}
 		return regionData, nil
