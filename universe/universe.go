@@ -15,6 +15,7 @@ import (
 type ResponseInfo struct {
 	SystemInfo
 	InvInfo
+	RegionInfo
 }
 
 // stuct for systems, if systems exists
@@ -37,7 +38,7 @@ type RegionInfo struct {
 	Region []struct {
 		RegionID int32  `json:"id"`
 		Name     string `json:"name"`
-	} `json:"regions"`
+	} `json:"regions,omitempty"`
 }
 
 // returns body which is a []byte
